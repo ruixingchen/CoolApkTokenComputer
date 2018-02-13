@@ -118,11 +118,11 @@
 
     <EditText
         android:id="@+id/startTimeEditText"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:ems="10"
-        android:hint="yyyyMMddHHmmss"
+        android:hint="StartTime-yyyyMMddHHmmss"
         android:inputType="textPersonName"
         app:layout_constraintBottom_toTopOf="@+id/seekBar"
         app:layout_constraintLeft_toLeftOf="parent"
