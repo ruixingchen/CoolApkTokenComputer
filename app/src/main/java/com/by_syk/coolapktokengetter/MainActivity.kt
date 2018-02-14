@@ -163,7 +163,7 @@ class MainActivity : Activity() {
             tmpToken = Token(currentTimeUTC,uuid,AuthUtils.getAS(uuid))
             tokenArray.add(tmpToken)
 
-            progress = ((currentTimeUTC-startTimeUTC)/(endTimeUTC-startTimeUTC)).toInt() * 100
+            progress = ((currentTimeUTC-startTimeUTC)*100/(endTimeUTC-startTimeUTC)).toInt()
             runOnUiThread {
                 progressTextView.text = progress.toString()+"%"
             }
