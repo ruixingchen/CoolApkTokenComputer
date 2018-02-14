@@ -24,6 +24,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        requestPermission()
+
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onStopTrackingTouch(seekBar: SeekBar) {}
             override fun onStartTrackingTouch(seekBar: SeekBar) {}
@@ -66,55 +68,67 @@ class MainActivity : Activity() {
                 uuid = uuidEditText.text.toString()
             }
 
-            if (startMonthTextField.text.toString().isNullOrBlank()) {
-                if (startTimeEditText.text.toString().isNullOrBlank()) {
-                    runOnUiThread {
-                        progressTextView.text = "input something"
-                    }
-                    Log.e("1","未输入任何开始时间")
-                    return ""
-                }else{
-                    //时间计算
-                    Log.e("1","计算时间段")
-                    val formatter = SimpleDateFormat("yyyyMMddHHmmss")
-                    startTimeUTC = formatter.parse(startTimeEditText.text.toString()).time / 1000
-                    endTimeUTC = startTimeUTC + (seekBar.progress.toLong() + 1) * 24L * 60L * 60L
-                    fileName = formatter.format(Date(startTimeUTC*1000)) + "-" + formatter.format(Date(endTimeUTC*1000)) + ".json"
-                }
-            }else{
+            if (!startMonthTextField.text.toString().isNullOrBlank()) {
                 //按月计算
                 Log.d("1","计算月份")
                 startTimeUTC = SimpleDateFormat("yyyyMM").parse(startMonthTextField.text.toString()).time/1000
                 endTimeUTC = startTimeUTC + 32L*24L*60L*60L
                 fileName = startMonthTextField.text.toString() + ".json"
+            }else if (!startTimeEditText.text.toString().isNullOrBlank()) {
+                //时间计算
+                Log.e("1","计算时间段")
+                val formatter = SimpleDateFormat("yyyyMMddHHmmss")
+                startTimeUTC = formatter.parse(startTimeEditText.text.toString()).time / 1000
+                endTimeUTC = startTimeUTC + (seekBar.progress.toLong() + 1) * 24L * 60L * 60L
+                fileName = formatter.format(Date(startTimeUTC*1000)) + "-" + formatter.format(Date(endTimeUTC*1000)) + ".json"
+            }else if (!startYearEditText.text.isNullOrBlank()) {
+                Log.d("1", "计算年")
+                startTimeUTC = SimpleDateFormat("yyyy").parse(startYearEditText.text.toString()).time/1000
+                endTimeUTC = startTimeUTC + 370L*24L*60L*60L
+                fileName = startYearEditText.text.toString() + ".json"
+            }else {
+                runOnUiThread {
+                    progressTextView.text = "input something"
+                }
+                Log.e("1","未输入任何开始时间")
+                return ""
             }
 
             if (true) {
                 var formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
                 val start = formatter.format(Date(startTimeUTC*1000))
                 val end = formatter.format(Date(endTimeUTC*1000))
-
                 Log.d("1","开始计算, 开始:${start},结束:${end}")
             }
 
-            val tokenArray = generateToken(uuid,startTimeUTC,endTimeUTC)
-            if (tokenArray == null) {
-                progressTextView.text = "generate with error"
-                return ""
+            val path = "/sdcard/Download/" + fileName
+            val file = File(path)
+            file.writeText("")
+
+            var step:Long = 7L*24L*60L*60L
+            for (start in startTimeUTC..endTimeUTC+300 step step) {
+                var end = start + step
+                if (end > endTimeUTC) {
+                    end = endTimeUTC
+                }
+                Log.d("1","start:${start},end:${end}")
+                val tokenArray = generateToken(uuid,start,end)
+                if (tokenArray == null) {
+                    return ""
+                }
+                file.appendText(joinTokenArray(tokenArray))
+
+                runOnUiThread {
+                    progressTextView.text = ((start-startTimeUTC)*100/(endTimeUTC-startTimeUTC)).toString()+"%"
+                }
             }
 
-            Log.v("tokenGenerator", "Token count:${tokenArray.count()}")
-
-            val path = "/sdcard/Download/" + fileName
-            writeTokenArray(path,tokenArray)
+            file.writeText("[${file.readText()}\n]")
 
             runOnUiThread {
                 progressTextView.text = "Finish"
             }
 
-            tokenArray.removeAll {
-                true
-            }
             return ""
         }
 
@@ -131,7 +145,6 @@ class MainActivity : Activity() {
 
         var tokenArray:MutableList<Token> = mutableListOf()
         var tmpToken:Token?
-        var progress:Int
 
         var currentTimeUTC = startTimeUTC
         val calendar = Calendar.getInstance()
@@ -167,18 +180,13 @@ class MainActivity : Activity() {
             tmpToken = Token(currentTimeUTC,uuid,AuthUtils.getAS(uuid))
             tokenArray.add(tmpToken)
 
-            progress = ((currentTimeUTC-startTimeUTC)*100/(endTimeUTC-startTimeUTC)).toInt()
-            runOnUiThread {
-                progressTextView.text = progress.toString()+"%"
-            }
-
             currentTimeUTC += 290
         }
 
         return tokenArray
     }
 
-    fun writeTokenArray(path:String, tokenArray:MutableList<Token>){
+    fun joinTokenArray(tokenArray: MutableList<Token>) : String {
         var joinedString:String
         if (debugCheckBox.isChecked) {
             val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
@@ -191,15 +199,20 @@ class MainActivity : Activity() {
                 "\n{\n\"time\":${it.time},\n\"token\":\"${it.token}\"\n}"
             })
         }
+        return joinedString
+    }
 
-        val tokenJsonString = "[\n${joinedString}\n]"
+    fun writeTextToFile(path: String, text: String) {
+        val file = File(path)
+        file.writeText(text)
+    }
 
-        writeSDFile(path, tokenJsonString)
+    fun appendTextToFile(path: String, text: String) {
+        val file = File(path)
+        file.appendText(text)
     }
 
     fun setSystemTimeWithCalendar(c: Calendar) {
-
-        requestPermission()
 
         val `when` = c.timeInMillis
 
@@ -244,19 +257,5 @@ class MainActivity : Activity() {
         }
 
         return process
-    }
-
-    @Throws(IOException::class)
-    fun writeSDFile(fileName: String, write_str: String) {
-
-        val file = File(fileName)
-
-        val fos = FileOutputStream(file)
-
-        val bytes = write_str.toByteArray()
-
-        fos.write(bytes)
-
-        fos.close()
     }
 }
