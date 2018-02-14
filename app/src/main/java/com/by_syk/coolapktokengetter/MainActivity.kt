@@ -85,7 +85,7 @@ class MainActivity : Activity() {
                 //按月计算
                 Log.d("1","计算月份")
                 startTimeUTC = SimpleDateFormat("yyyyMM").parse(startMonthTextField.text.toString()).time/1000
-                endTimeUTC = startTimeUTC + 30L*24L*60L*60L/100
+                endTimeUTC = startTimeUTC + 30L*24L*60L*60L
                 fileName = startMonthTextField.text.toString() + ".json"
             }
 
