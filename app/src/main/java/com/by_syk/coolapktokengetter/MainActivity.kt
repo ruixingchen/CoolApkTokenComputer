@@ -1,19 +1,3 @@
-/*
- * Copyright 2017 By_syk
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.by_syk.coolapktokengetter
 
 import android.app.Activity
@@ -31,15 +15,8 @@ import java.io.IOException
 import java.util.*
 import android.widget.SeekBar
 import android.os.Environment
-import android.text.TextUtils
-import org.w3c.dom.Text
 import java.io.FileOutputStream
-import java.sql.Time
 import java.text.SimpleDateFormat
-
-/**
- * Created by By_syk on 2016-07-16.
- */
 
 class MainActivity : Activity() {
 
@@ -58,6 +35,13 @@ class MainActivity : Activity() {
     }
 
     fun onStartClick(view: View) {
+
+        if (!Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
+            Log.e("CAToken", "No External Storage")
+            progressTextView.text = "No External Storage"
+            return
+        }
+
         TokenTask().execute()
     }
 
@@ -65,12 +49,68 @@ class MainActivity : Activity() {
 
         override fun onPreExecute() {
             super.onPreExecute()
-            progressBar.progress = 0
             progressTextView.text = "0%"
         }
 
         override fun doInBackground(vararg p0: String?): String {
-            generateToken()
+
+            //generate param
+            var uuid:String
+            var startTimeUTC:Long
+            var endTimeUTC:Long
+            var fileName:String
+
+            if (uuidEditText.text.toString().isNullOrBlank()) {
+                uuid = ""
+            }else{
+                uuid = uuidEditText.text.toString()
+            }
+
+            if (startMonthTextField.text.toString().isNullOrBlank()) {
+                if (startTimeEditText.text.toString().isNullOrBlank()) {
+                    runOnUiThread {
+                        progressTextView.text = "input something"
+                    }
+                    Log.e("1","未输入任何开始时间")
+                    return ""
+                }else{
+                    //时间计算
+                    Log.e("1","计算时间段")
+                    val formatter = SimpleDateFormat("yyyyMMddHHmmss")
+                    startTimeUTC = formatter.parse(startTimeEditText.text.toString()).time / 1000
+                    endTimeUTC = startTimeUTC + (seekBar.progress.toLong() + 1) * 24L * 60L * 60L
+                    fileName = formatter.format(Date(startTimeUTC*1000)) + "-" + formatter.format(Date(endTimeUTC*1000)) + ".json"
+                }
+            }else{
+                //按月计算
+                Log.d("1","计算月份")
+                startTimeUTC = SimpleDateFormat("yyyyMM").parse(startMonthTextField.text.toString()).time/1000
+                endTimeUTC = startTimeUTC + 30L*24L*60L*60L/100
+                fileName = startMonthTextField.text.toString() + ".json"
+            }
+
+            if (true) {
+                var formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                val start = formatter.format(Date(startTimeUTC*1000))
+                val end = formatter.format(Date(endTimeUTC*1000))
+
+                Log.d("1","开始计算, 开始:${start},结束:${end}")
+            }
+
+            val tokenArray = generateToken(uuid,startTimeUTC,endTimeUTC)
+            if (tokenArray == null) {
+                progressTextView.text = "generate with error"
+                return ""
+            }
+
+            Log.v("tokenGenerator", "Token count:${tokenArray.count()}")
+
+            val path = "/sdcard/Download/" + fileName
+            writeTokenArray(path,tokenArray)
+
+            runOnUiThread {
+                progressTextView.text = "Finish"
+            }
             return ""
         }
 
@@ -81,114 +121,76 @@ class MainActivity : Activity() {
 
     }
 
-    fun generateToken(){
+    fun generateToken(inUUID:String,startTimeUTC: Long, endTimeUTC: Long) : MutableList<Token>? {
+        val randomUUID:Boolean = inUUID.isNullOrBlank()
+        var uuid:String = inUUID
 
-        val randomUUID:Boolean = randomCheckBox.isChecked
-        var uuid:String = ""
-        if (!randomUUID) {
-            uuid = uuidEditText.text.toString()
-            if (uuid.isNullOrBlank()){
+        var tokenArray:MutableList<Token> = mutableListOf()
+        var tmpToken:Token?
+        var progress:Int
+
+        var currentTimeUTC = startTimeUTC
+        val calendar = Calendar.getInstance()
+
+        var setSysTimeFailedTime = 0
+
+        while (currentTimeUTC <= endTimeUTC) {
+
+            if (randomUUID) {
                 uuid = UUID.randomUUID().toString()
             }
-        }
-        var targetCalendar = Calendar.getInstance()
-        var startTimeText = startTimeEditText.text.toString()
-        if (!startTimeText.isNullOrBlank()) {
-            //we have a custom start time
-            try {
-                val startTime = SimpleDateFormat("yyyyMMddHHmmss").parse(startTimeText)
-                //success
-                targetCalendar.time = startTime
-            }catch (e: Exception) {
-                //failed
-                Log.e("error", "parse start time failed")
+
+            calendar.timeInMillis = currentTimeUTC*1000
+            setSystemTimeWithCalendar(calendar)
+
+            if (Calendar.getInstance().timeInMillis - currentTimeUTC*1000 > 1000) {
+                Log.e("error", "set sys time failed")
                 runOnUiThread {
-                    Toast.makeText(this, "parse start time failed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "set sys time failed, retry", Toast.LENGTH_SHORT).show()
                 }
-                return
+                setSysTimeFailedTime += 1
+                if (setSysTimeFailedTime > 3) {
+                    runOnUiThread {
+                        Toast.makeText(this, "can not set sys time, return", Toast.LENGTH_SHORT).show()
+                        progressTextView.text = "Failed"
+                    }
+                    return null
+                }
+                continue
             }
+            setSysTimeFailedTime = 0
+
+            tmpToken = Token(currentTimeUTC,uuid,AuthUtils.getAS(uuid))
+            tokenArray.add(tmpToken)
+
+            progress = ((currentTimeUTC-startTimeUTC)/(endTimeUTC-startTimeUTC)).toInt() * 100
+            runOnUiThread {
+                progressTextView.text = progress.toString()+"%"
+            }
+
+            currentTimeUTC += 290
         }
 
-        val startTime = targetCalendar.time
-        var startTimeS:Long = targetCalendar.timeInMillis/1000
-        var targetTimeS:Long = startTimeS - 290
+        return tokenArray
+    }
 
-        var totalS:Long = 24L*60L*60L*(seekBar.progress+1).toLong()
-        var setTimeFailedTime = 0
-        try {
-            var tokenArray:MutableList<Token> = mutableListOf()
-            var tmpToken:Token?
-            var progress = 0
-            while (targetTimeS - startTimeS < totalS) {
-                targetTimeS += 290 //290 seconds
-                targetCalendar.timeInMillis = targetTimeS*1000
-                setSystemTimeWithCalendar(targetCalendar)
-
-                if (randomUUID) {
-                    uuid = UUID.randomUUID().toString()
-                }
-                if (Calendar.getInstance().timeInMillis - targetTimeS*1000 > 1000) { //设置后的时间和目标时间差值超过1s则视为失败
-                    Log.e("error", "set sys time failed")
-                    runOnUiThread {
-                        Toast.makeText(this, "set sys time failed, retry", Toast.LENGTH_SHORT).show()
-                    }
-                    setTimeFailedTime += 1
-                    if (setTimeFailedTime > 3) {
-                        runOnUiThread {
-                            Toast.makeText(this, "can not set sys time, return", Toast.LENGTH_SHORT).show()
-                            progressBar.progress = 0
-                            progressTextView.text = "Failed"
-                        }
-                        return
-                    }
-                    targetTimeS -= 290
-                    continue
-                }
-                setTimeFailedTime = 0 //clear the error time
-                tmpToken = Token(targetTimeS, AuthUtils.getAS(uuid))
-                tokenArray.add(tmpToken)
-
-                if ((100*(targetTimeS - startTimeS)/totalS).toInt() - progress >= 2) {
-                    Log.v("tokengGeneratorProgres", progress.toString())
-                    progress = (100*(targetTimeS - startTimeS)/totalS).toInt()
-                    runOnUiThread {
-                        progressTextView.text = progress.toString()+"%"
-                        progressBar.progress = progress
-                    }
-                }
-            }
-
-            Log.v("tokenGenerator", "Token count:")
-            Log.v("tokenGenerator", tokenArray.count().toString())
-
-            val joinToString = tokenArray.joinToString(",","","",-1,"",{
-                "\n{\n\"time\":${it.time},\n\"token\":\"${it.token}\"\n}" as CharSequence
+    fun writeTokenArray(path:String, tokenArray:MutableList<Token>){
+        var joinedString:String
+        if (debugCheckBox.isChecked) {
+            val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+            joinedString = tokenArray.joinToString(",", "", "", -1, "", {
+                val checkString = formatter.format(Date(it.time*1000)) + "--" + Integer.toHexString(it.time.toInt())
+                "\n{\n\"time\":${it.time},\n\"check\":\"${checkString}\",\n\"uuid\":\"${it.uuid}\",\n\"token\":\"${it.token}\"\n}"
             })
-            val tokenJsonString = "[\n${joinToString}\n]"
-
-            if (!Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
-                Log.e("CAToken", "No External Storage")
-                return
-            }
-            val dateFormatter = SimpleDateFormat("yyyyMMddHHmmss")
-            val start = dateFormatter.format(startTime)
-            val end = dateFormatter.format(targetCalendar.time)
-
-            val fileName = "/sdcard/Download/" + start + "-" + end + ".json"
-            writeSDFile(fileName, tokenJsonString)
-
-            runOnUiThread {
-                Toast.makeText(this, "Finish", Toast.LENGTH_SHORT).show()
-                progressTextView.text = "Finish"
-            }
-        } catch (e: Exception) {
-            Log.e("1", "Error, ${e}")
-            runOnUiThread {
-                Toast.makeText(this, "Error", Toast.LENGTH_SHORT).show()
-                progressTextView.text = "ERROR"
-            }
+        }else {
+            joinedString = tokenArray.joinToString(",", "", "", -1, "", {
+                "\n{\n\"time\":${it.time},\n\"token\":\"${it.token}\"\n}"
+            })
         }
 
+        val tokenJsonString = "[\n${joinedString}\n]"
+
+        writeSDFile(path, tokenJsonString)
     }
 
     fun setSystemTimeWithCalendar(c: Calendar) {
