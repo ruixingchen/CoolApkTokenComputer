@@ -101,9 +101,7 @@ class MainActivity : Activity() {
                 Log.d("1","开始计算, 开始:${start},结束:${end}")
             }
 
-            val path = "/sdcard/Download/" + fileName
-            val file = File(path)
-            file.writeText("")
+            var joinedArray:MutableList<String> = mutableListOf()
 
             var step:Long = 7L*24L*60L*60L
             for (start in startTimeUTC..endTimeUTC+300 step step) {
@@ -116,14 +114,20 @@ class MainActivity : Activity() {
                 if (tokenArray == null) {
                     return ""
                 }
-                file.appendText(joinTokenArray(tokenArray))
+
+                joinedArray.add(joinTokenArray(tokenArray))
 
                 runOnUiThread {
                     progressTextView.text = ((start-startTimeUTC)*100/(endTimeUTC-startTimeUTC)).toString()+"%"
                 }
             }
 
-            file.writeText("[${file.readText()}\n]")
+            val path = "/sdcard/Download/" + fileName
+            val file = File(path)
+
+            val joined = joinedArray.joinToString(",")
+
+            file.writeText("[${joined}\n]")
 
             runOnUiThread {
                 progressTextView.text = "Finish"
