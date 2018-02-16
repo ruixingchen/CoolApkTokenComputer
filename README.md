@@ -14,6 +14,30 @@ the token is generated with time and uuid, of cause some tricks like string reve
 
 **the generated json file will be in the Downloads**
 
+**USAGE**
+
+1. UUID
+
+	you can generate with a specific uuid, keep it blank if you want random uuid
+
+2. StartYear
+
+	you can generate tokens for a whole year, the format is yyyy(like 2018), 370 days generated
+	
+3. StartMonth
+
+	like StartYear, input yyyyMM(like 201802) to generate for a month (32 days actually)
+
+4. StartTime
+
+	the start point of the generation,format is yyyyMMddHHmmss(like 20180201121500), slide on the seekbar to choose how many days to generate, 1 min and 32 max
+	
+5. DEBUG
+
+	output with some debug and check information
+	
+**the generation will use the first non-blank field, if the format is wrong, app will crash😂**
+
 **screenshoot:**
 
 ![](https://raw.githubusercontent.com/ruixingchen/CoolApkTokenComputer/master/ReadmeImage/mainScreen.jpg)

@@ -15,7 +15,6 @@ import java.io.IOException
 import java.util.*
 import android.widget.SeekBar
 import android.os.Environment
-import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 
 class MainActivity : Activity() {
@@ -95,6 +94,7 @@ class MainActivity : Activity() {
             }
 
             if (true) {
+                //debug 具体的信息
                 var formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
                 val start = formatter.format(Date(startTimeUTC*1000))
                 val end = formatter.format(Date(endTimeUTC*1000))
@@ -103,6 +103,7 @@ class MainActivity : Activity() {
 
             var joinedArray:MutableList<String> = mutableListOf()
 
+            //分段计算, 提高效率, 计算速度提高了十倍
             var step:Long = 7L*24L*60L*60L
             for (start in startTimeUTC..endTimeUTC+300 step step) {
                 var end = start + step
@@ -143,6 +144,7 @@ class MainActivity : Activity() {
 
     }
 
+    //根据给定的时间段计算 Token
     fun generateToken(inUUID:String,startTimeUTC: Long, endTimeUTC: Long) : MutableList<Token>? {
         val randomUUID:Boolean = inUUID.isNullOrBlank()
         var uuid:String = inUUID
@@ -151,7 +153,6 @@ class MainActivity : Activity() {
         var tmpToken:Token?
 
         var currentTimeUTC = startTimeUTC
-        val calendar = Calendar.getInstance()
 
         var setSysTimeFailedTime = 0
 
@@ -161,13 +162,12 @@ class MainActivity : Activity() {
                 uuid = UUID.randomUUID().toString()
             }
 
-            calendar.timeInMillis = currentTimeUTC*1000
-            setSystemTimeWithCalendar(calendar)
+            setSystemTimeWithUTC(currentTimeUTC)
 
             if (Calendar.getInstance().timeInMillis - currentTimeUTC*1000 > 1000) {
                 Log.e("error", "set sys time failed")
                 runOnUiThread {
-                    Toast.makeText(this, "set sys time failed, retry", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "set sys time failed, retry now", Toast.LENGTH_SHORT).show()
                 }
                 setSysTimeFailedTime += 1
                 if (setSysTimeFailedTime > 3) {
@@ -190,6 +190,7 @@ class MainActivity : Activity() {
         return tokenArray
     }
 
+    //使用逗号合并 token
     fun joinTokenArray(tokenArray: MutableList<Token>) : String {
         var joinedString:String
         if (debugCheckBox.isChecked) {
@@ -216,13 +217,8 @@ class MainActivity : Activity() {
         file.appendText(text)
     }
 
-    fun setSystemTimeWithCalendar(c: Calendar) {
-
-        val `when` = c.timeInMillis
-
-        if (`when` / 1000 < Integer.MAX_VALUE) {
-            SystemClock.setCurrentTimeMillis(`when`)
-        }
+    fun setSystemTimeWithUTC(time:Long){
+        SystemClock.setCurrentTimeMillis(time*1000)
     }
 
     @Throws(InterruptedException::class, IOException::class)
